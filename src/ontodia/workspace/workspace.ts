@@ -20,9 +20,10 @@ import { SearchCriteria } from '../widgets/instancesSearch';
 import { DefaultToolbar, ToolbarProps as DefaultToolbarProps } from '../widgets/toolbar';
 
 import { WorkspaceMarkup, Props as MarkupProps } from './workspaceMarkup';
-import { LayoutAlgorithmManager, LayoutAlgorithmManagerProps } from '../widgets/layoutAlgorithmManager/layoutAlgorithmManager';
+import { LayoutAlgorithmManager, LayoutAlgorithmManagerProps, BooleanParameter, Parameter, NumericParameter } from '../widgets/layoutAlgorithmManager';
 import { Dictionary, Vertex } from '../../index';
 
+export enum ALGORITHM { FORCE = 1, FLOW = 2 };
 
 export interface WorkspaceProps {
     onSaveDiagram?: (workspace: Workspace) => void;
@@ -124,22 +125,40 @@ export class Workspace extends Component<WorkspaceProps, State> {
                             label: 'Force layout',
                             icon: 'fa fa-snowflake-o',
                             supportAnimation: true,
-                            layoutFunction: (interactive) => {
-                                this.forceLayout(interactive);
-                                if (!interactive) {
+                            layoutFunction: (params) => {
+                                this.layout(ALGORITHM.FORCE, params);
+                                if (!params.interactive) {
                                     this.zoomToFit();
+                                }
+                            },
+                            parameters: {
+                                linkLength: {
+                                    type: 'number',
+                                    label: 'Link length',
+                                    value: 200,
+                                    min: 1,
+                                    max: 400,
                                 }
                             }
-                        },{
-                            id: 'floweLayout',
-                            label: 'Flowe layout',
+                        }, {
+                            id: 'flowLayout',
+                            label: 'Flow layout',
                             icon: 'fa fa-sitemap',
                             supportAnimation: true,
-                            layoutFunction: (interactive) => {
-                                this.flowLayout(interactive);
-                                if (!interactive) {
+                            layoutFunction: (params) => {
+                                this.layout(ALGORITHM.FLOW, params);
+                                if (!params.interactive) {
                                     this.zoomToFit();
                                 }
+                            },
+                            parameters: {
+                                linkLength: {
+                                    type: 'number',
+                                    label: 'Link length',
+                                    value: 200,
+                                    min: 1,
+                                    max: 400,
+                                },
                             }
                         }],
                     },
@@ -220,7 +239,12 @@ export class Workspace extends Component<WorkspaceProps, State> {
         this.markup.paperArea.showIndicator(promise);
     }
 
-    forceLayout = (interactive?: boolean) => {
+    forceLayout() {
+        this.layout(ALGORITHM.FORCE, {});
+    }
+    private layout = (algorithm: ALGORITHM, params: Dictionary<any>) => {
+        const linkLength: number = params.linkLength || 200;
+
         const nodes: LayoutNode[] = [];
         const nodeById: { [id: string]: LayoutNode } = {};
         for (const element of this.model.elements) {
@@ -242,39 +266,25 @@ export class Workspace extends Component<WorkspaceProps, State> {
                 target: nodeById[target.id],
             });
         }
-        const iterations = interactive ? 1 : 30;
-        forceLayout({iterations, nodes, links, preferredLinkLength: 200});
+        const iterations = params.interactive ? 1 : 30;
 
-        padded(nodes, {x: 10, y: 10}, () => removeOverlaps(nodes));
-        translateToPositiveQuadrant({nodes, padding: {x: 150, y: 150}});
-
-        
-        const oldPositions: Dictionary<LayoutNode> = {};
-
-        for (const node of nodes) {
-            const element = this.model.getElement(node.id);
-            oldPositions[node.id] = {
-                x: element.position.x,
-                y: element.position.y,
-                width: node.width,
-                height: node.height,
-            };
-            element.setPosition({x: node.x, y: node.y});
+        if (algorithm === ALGORITHM.FORCE) {
+            forceLayout({iterations, nodes, links, preferredLinkLength: linkLength});
+        } else {
+            flowLayout({iterations, nodes, links, preferredLinkLength: linkLength});
         }
 
-        const adjustedBox = this.markup.paperArea.computeAdjustedBox();
-        translateToCenter({
-            nodes,
-            paperSize: {width: adjustedBox.paperWidth, height: adjustedBox.paperHeight},
-            contentBBox: this.markup.paperArea.getContentFittingBox(),
-        });
+        if (!params.interactive) {
+            padded(nodes, {x: 10, y: 10}, () => removeOverlaps(nodes));
+        }
+        translateToPositiveQuadrant({nodes, padding: {x: 150, y: 150}});
 
-        if (interactive) {
+        if (params.interactive) {
             const MAX_OFFSET = 30;
-            for(const node of nodes) {
+            for (const node of nodes) {
                 const element = this.model.getElement(node.id);
-                const prevPosition = oldPositions[node.id];
-                
+                const prevPosition = element.position;
+
                 let dx = node.x - prevPosition.x;
                 if (Math.abs(dx) > MAX_OFFSET) {
                     dx = dx > 0 ? MAX_OFFSET : -MAX_OFFSET;
@@ -287,81 +297,9 @@ export class Workspace extends Component<WorkspaceProps, State> {
                 }
                 element.setPosition({x: node.x, y: node.y});
             }
-        }
-
-        for (const {link} of links) {
-            link.setVertices([]);
-        }
-
-        this.diagram.performSyncUpdate();
-    }
-
-    flowLayout = (interactive?: boolean) => {
-        const nodes: LayoutNode[] = [];
-        const nodeById: { [id: string]: LayoutNode } = {};
-        for (const element of this.model.elements) {
-            const {x, y, width, height} = boundsOf(element);
-            const node: LayoutNode = {id: element.id, x, y, width, height};
-            nodeById[element.id] = node;
-            nodes.push(node);
-        }
-
-        type LinkWithReference = LayoutLink & { link: Link };
-        const links: LinkWithReference[] = [];
-        for (const link of this.model.links) {
-            if (!this.model.isSourceAndTargetVisible(link)) { continue; }
-            const source = this.model.sourceOf(link);
-            const target = this.model.targetOf(link);
-            links.push({
-                link,
-                source: nodeById[source.id],
-                target: nodeById[target.id],
-            });
-        }
-        const iterations = interactive ? 1 : 30;
-        flowLayout({iterations, nodes, links, preferredLinkLength: 200});
-
-        padded(nodes, {x: 10, y: 10}, () => removeOverlaps(nodes));
-        translateToPositiveQuadrant({nodes, padding: {x: 150, y: 150}});
-
-        
-        const oldPositions: Dictionary<LayoutNode> = {};
-
-        for (const node of nodes) {
-            const element = this.model.getElement(node.id);
-            oldPositions[node.id] = {
-                x: element.position.x,
-                y: element.position.y,
-                width: node.width,
-                height: node.height,
-            };
-            element.setPosition({x: node.x, y: node.y});
-        }
-
-        const adjustedBox = this.markup.paperArea.computeAdjustedBox();
-        translateToCenter({
-            nodes,
-            paperSize: {width: adjustedBox.paperWidth, height: adjustedBox.paperHeight},
-            contentBBox: this.markup.paperArea.getContentFittingBox(),
-        });
-
-        if (interactive) {
-            const MAX_OFFSET = 30;
-            for(const node of nodes) {
-                const element = this.model.getElement(node.id);
-                const prevPosition = oldPositions[node.id];
-                
-                let dx = node.x - prevPosition.x;
-                if (Math.abs(dx) > MAX_OFFSET) {
-                    dx = dx > 0 ? MAX_OFFSET : -MAX_OFFSET;
-                    node.x = prevPosition.x + dx;
-                }
-                let dy = node.y - prevPosition.y;
-                if (Math.abs(dy) > MAX_OFFSET) {
-                    dy = dy > 0 ? MAX_OFFSET : -MAX_OFFSET;
-                    node.y = prevPosition.y + dy;
-                }
-                element.setPosition({x: node.x, y: node.y});
+        } else {
+            for (const node of nodes) {
+                this.model.getElement(node.id).setPosition({x: node.x, y: node.y});
             }
         }
 
