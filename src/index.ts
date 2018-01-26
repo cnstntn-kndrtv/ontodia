@@ -25,6 +25,7 @@ export * from './ontodia/diagram/view';
 export * from './ontodia/viewUtils/crossOriginImage';
 export { PropertySuggestionParams, PropertyScore } from './ontodia/viewUtils/connectionsMenu';
 export * from './ontodia/viewUtils/events';
+export * from './ontodia/widgets/snapLines';
 
 export * from './ontodia/widgets/toolbar';
 

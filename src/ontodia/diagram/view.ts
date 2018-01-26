@@ -17,6 +17,7 @@ import { DefaultLinkTemplateBundle } from '../customization/defaultLinkStyles';
 import { DefaultElementTemplate, DefaultTemplateBundle } from '../customization/templates';
 
 import { Halo } from '../viewUtils/halo';
+import { SnapLines } from '../widgets/snapLines';
 import { ConnectionsMenu, PropertySuggestionHandler } from '../viewUtils/connectionsMenu';
 import { Events, EventSource, EventObserver, PropertyChange } from '../viewUtils/events';
 import {
@@ -145,6 +146,7 @@ export class DiagramView {
     }
 
     initializePaperComponents() {
+        this.configureSnapLines();
         if (!this.options.disableDefaultHalo) {
             this.configureHalo();
             document.addEventListener('keyup', this.onKeyUp);
@@ -235,6 +237,15 @@ export class DiagramView {
         });
 
         renderDefaultHalo();
+    }
+
+    private configureSnapLines() {
+        // if (this.options.disableSnapLines) { return; }
+        const snapLinesWidget = createElement(SnapLines, {
+            view: this,
+            model: this.model,
+        });
+        this.source.trigger('updateWidgets', {widgets: {snapLinesWidget}});
     }
 
     showNavigationMenu(target: Element) {
