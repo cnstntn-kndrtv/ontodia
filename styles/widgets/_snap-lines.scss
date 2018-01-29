@@ -4,12 +4,14 @@
   left: 0px;
 }
 
-.ontodia-horizaontal-snap-line {
-  width: 100vw;
+.ontodia-horizontal-snap-line {
+  width: 200vw;
+  margin-left: - 100vw;
   border-bottom: 1px solid greenyellow;
 }
 
 .ontodia-vertical-snap-line {
-  height: 100vh;
+  height: 200vh;
+  margin-top: - 100vh;
   border-right: 1px solid greenyellow;
 }
