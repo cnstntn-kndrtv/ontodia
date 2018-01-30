@@ -2,8 +2,8 @@ import { createElement, ClassAttributes } from 'react';
 import * as ReactDOM from 'react-dom';
 
 import { Workspace, WorkspaceProps, DemoDataProvider } from '../index';
-
 import { onPageLoad, tryLoadLayoutFromLocalStorage, saveLayoutToLocalStorage } from './common';
+import { SnapLines } from './widgets/snapLines';
 
 function onWorkspaceMounted(workspace: Workspace) {
     if (!workspace) { return; }
@@ -13,6 +13,11 @@ function onWorkspaceMounted(workspace: Workspace) {
         layoutData,
         dataProvider: new DemoDataProvider(),
         validateLinks: true,
+    }).then(() => {
+        const view = workspace.getDiagram();
+        const model = view.model;
+        const widget = createElement(SnapLines, {model});
+        view.setCustomWidget({id: 'snapLinesWidget', widget });
     });
 }
 

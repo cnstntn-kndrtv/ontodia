@@ -17,7 +17,6 @@ import { DefaultLinkTemplateBundle } from '../customization/defaultLinkStyles';
 import { DefaultElementTemplate, DefaultTemplateBundle } from '../customization/templates';
 
 import { Halo } from '../viewUtils/halo';
-import { SnapLines, SnapLinesProps } from '../widgets/snapLines';
 import { ConnectionsMenu, PropertySuggestionHandler } from '../viewUtils/connectionsMenu';
 import { Events, EventSource, EventObserver, PropertyChange } from '../viewUtils/events';
 import {
@@ -148,7 +147,6 @@ export class DiagramView {
     initializePaperComponents() {
         if (!this.options.disableDefaultHalo) {
             this.configureHalo();
-            this.configureSnapLines();
             document.addEventListener('keyup', this.onKeyUp);
             this.listener.listen(this.events, 'dispose', () => {
                 document.removeEventListener('keyup', this.onKeyUp);
@@ -239,11 +237,10 @@ export class DiagramView {
         renderDefaultHalo();
     }
 
-    private configureSnapLines() {
-        const snapLinesWidget = createElement(SnapLines, {
-            model: this.model,
-        });
-        this.source.trigger('updateWidgets', {widgets: {snapLinesWidget}});
+    setCustomWidget(customWidget: {id: string, widget: ReactElement<any>}) {
+        const widgets: any = {};
+        widgets[customWidget.id] = customWidget.widget;
+        this.source.trigger('updateWidgets', {widgets: widgets});
     }
 
     showNavigationMenu(target: Element) {

@@ -1,29 +1,37 @@
 import * as React from 'react';
 
-import { Vector } from '../diagram/geometry';
-import { PaperWidgetProps, PaperArea } from '../diagram/paperArea';
-import { DiagramModel } from '../diagram/model';
-import { EventObserver } from '../viewUtils/events';
-import { Dictionary } from '../data/model';
-import { Element } from '../diagram/elements';
-import { boundsOf } from '../diagram/geometry';
+import {
+    DiagramModel,
+    DiagramView,
+    EventObserver,
+    Events, Element,
+    InternalApi,
+} from '../../index';
 
-export const DEFAULT_MAGNET_RADIUS = 10;
+const DEFAULT_MAGNET_RADIUS = 10;
 
-export interface AffectiveLine {
+interface AffectiveLine {
     linePosition: number;
     elementOffset: number;
     distance: number;
 };
 
-export interface LinesOfElement {
+interface LinesOfElement {
     verticals: number[];
     horizontals: number[];
 }
 
-export interface SnapLinesProps extends PaperWidgetProps {
+export interface Rect {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+}
+
+export interface SnapLinesProps {
     model: DiagramModel;
     magnetRadius?: number;
+    paperArea?: InternalApi.PaperArea;
 }
 
 export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}> {
@@ -39,6 +47,28 @@ export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}
     constructor(props: SnapLinesProps) {
         super(props);
         this.state = {active: false};
+    }
+
+    componentDidMount() {
+        const {paperArea} = this.props;
+        this.listener.listen(paperArea.events, 'onDragElementStart', (element: Element) => {
+            this.target = element;
+            this.createGrid();
+
+            this.state.active = true;
+            this.setState(this.state);
+        });
+        this.listener.listen(paperArea.events, 'onDragElement', ({source, previous}) => {
+            this.onDragElement(source);
+            this.forceUpdate();
+        });
+        this.listener.listen(paperArea.events, 'onDragElementEnd', (element: Element) => {
+            this.target = undefined;
+            this.grid = undefined;
+
+            this.state.active = false;
+            this.setState(this.state);
+        });
     }
 
     render() {
@@ -58,11 +88,11 @@ export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}
         const magnetLines = this.getLinesOfElement(element);
 
         const horizontal = this.getBestLine(
-            this.grid.rows, magnetLines.horizontals, this.props.magnetRadius,
+            element, this.grid.rows, magnetLines.horizontals, this.props.magnetRadius,
         );
 
         const vertical = this.getBestLine(
-            this.grid.columns, magnetLines.verticals, this.props.magnetRadius,
+            element, this.grid.columns, magnetLines.verticals, this.props.magnetRadius,
         );
 
         element.setPosition({
@@ -76,9 +106,13 @@ export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}
         };
     }
 
-    private getBestLine(gridArray: Element[][], magnetLines: number[], radius: number): AffectiveLine {
+    private getBestLine(
+        target: Element,
+        gridArray: Element[][],
+        magnetLines: number[],
+        radius: number
+    ): AffectiveLine {
         const affectiveLines: AffectiveLine[] = [];
-        const targetPosition = this.target.position;
         const magnetRadius = radius || DEFAULT_MAGNET_RADIUS;
 
         for (let i = 0; i < magnetRadius; i++) {
@@ -118,31 +152,11 @@ export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}
         function getMinDistance(elements: Element[]): number {
             return Math.min(...elements.map((e: Element) => {
                 return Math.sqrt(
-                    Math.pow(e.position.x - targetPosition.x, 2) +
-                    Math.pow(e.position.y - targetPosition.y, 2)
+                    Math.pow(e.position.x - target.position.x, 2) +
+                    Math.pow(e.position.y - target.position.y, 2)
                 );
             }));
         }
-    }
-
-    componentDidMount() {
-        const {paperArea} = this.props;
-        this.listener.listen(paperArea.events, 'onDragElementStart', (element: Element) => {
-            this.target = element;
-            this.createGrid();
-            this.state.active = true;
-            this.setState(this.state);
-        });
-        this.listener.listen(paperArea.events, 'onDragElement', ({source, previous}) => {
-            this.onDragElement(source);
-            this.forceUpdate();
-        });
-        this.listener.listen(paperArea.events, 'onDragElementEnd', (element: Element) => {
-            this.target = undefined;
-            this.grid = undefined;
-            this.state.active = false;
-            this.setState(this.state);
-        });
     }
 
     private getSnapLineViews() {
@@ -228,4 +242,10 @@ export class SnapLines extends React.Component<SnapLinesProps, {active: boolean}
             ]
         };
     }
+}
+
+export function boundsOf(element: Element): Rect {
+    const {x, y} = element.position;
+    const {width, height} = element.size;
+    return {x, y, width, height};
 }
